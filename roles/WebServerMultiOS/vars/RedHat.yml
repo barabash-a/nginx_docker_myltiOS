@@ -1,0 +1,18 @@
+---
+
+docker_py_deps:
+  - "python-devel"
+  - "python-pip"
+  - "openssl-devel"
+  - "libffi-devel"
+  - "libselinux-python"
+  - "nginx"
+  - "python3-pip"
+  - "curl"
+  - "libffi-devel"
+  - "libselinux-python"
+  - "python36"
+  - "python3-devel"
+  - "python36-virtualenv"
+  - "python3-wheel"
+  - "python-wheel"

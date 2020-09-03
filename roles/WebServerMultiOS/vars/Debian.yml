@@ -1,0 +1,17 @@
+---
+
+docker_py_deps:
+  - "aptitude"
+  - "python-dev"
+  - "python-pip"
+  - "libssl-dev"
+  - "libffi-dev"
+  - "nginx"
+  - "apt-transport-https"
+  - "ca-certificates"
+  - "curl"
+  - "software-properties-common"
+  - "python3-setuptools"
+  - "python3-pip"
+  - "virtualenv"
+  

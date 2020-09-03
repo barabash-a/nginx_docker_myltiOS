@@ -1,0 +1,179 @@
+---
+
+- include: multi_os.yml
+
+- include_tasks: RedHat.yml
+  when: ansible_os_family == 'RedHat' and ansible_distribution != 'Fedora'
+
+- name: Install system requirements for docker-py
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ docker_py_deps }}"
+
+- name: install docker-py requirement to manage containers
+  pip:
+    name: docker-py
+    state: present
+
+- name: Add Docker GPG apt Key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker Repository
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu bionic stable
+    state: present
+
+- name: Update apt and install docker-ce
+  apt: update_cache=yes name=docker-ce state=latest
+
+- name: Install Docker Module for Python
+  pip:
+    name: docker
+
+# Nginx Configuration
+- name: Sets Nginx conf file
+  template:
+    src: "files/nginx.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ http_conf }}"
+
+- name: Enables new site
+  file:
+    src: "/etc/nginx/sites-available/{{ http_conf }}"
+    dest: "/etc/nginx/sites-enabled/{{ http_conf }}"
+    state: link
+      #notify: Reload Nginx
+    
+- name: Removes "default" site
+  file:
+    path: "/etc/nginx/sites-enabled/default"
+    state: absent
+      #notify: Reload Nginx
+
+# UFW Configuration
+- name: "UFW - Allow HTTP on port"
+  ufw:
+    rule: allow
+    port: "80"
+     #port: "{{ http_port }}"
+    proto: tcp
+
+- name: "UFW - Allow HTTPS on port"
+  ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+
+#Allow all access from  networks to this host:
+- ufw:
+    rule: allow
+    port: "22"
+    src: "{{ item }}"
+  with_items:
+      - 
+
+- name: create run.cold.docker.sh
+  shell: echo  "systemctl start docker || true && sleep 5 && docker start \$(docker ps -a | grep \"Dead\|Exited\" | awk '{print \$1}')" > /opt/run.cold.docker.sh
+
+- name: bin/bash                      
+  shell: sed -i '1i#!/bin/bash' /opt/run.cold.docker.sh
+  
+- name: access
+  shell: chmod 777 /opt/run.cold.docker.sh
+
+
+- name: create run.docker.sh
+  shell: echo  "docker start \$(docker ps -a | grep \"Dead\|Exited\" | awk '{print \$1}')" > /opt/run.docker.sh
+  
+- name: bin/bash
+  shell: sed -i '1i#!/bin/bash' /opt/run.docker.sh
+  
+- name: access
+  shell: chmod 777 /opt/run.docker.sh
+  
+- name: clear the docker image script 
+  shell: echo  "docker rmi \$(docker images -qf dangling=true); true" > /opt/clear.docker.sh 
+  
+- name:  bin/bash
+  shell: sed -i '1i#!/bin/bash' /opt/clear.docker.sh
+
+- name: access
+  shell: chmod 777 /opt/clear.docker.sh
+
+- name: Start script clear.docker.sh
+  cron:
+    user: "root"
+    minute: "0"
+    hour: "*/4" 
+    job: "/opt/clear.docker.sh >> /opt/clear.log 2>&1"
+  
+- name: Start script run.docker.sh 
+  cron: 
+    user: "root"
+    minute: "*/5"
+    hour: "0"
+    job: "/opt/run.docker.sh >> /opt/run.log 2>&1"
+
+    #- name: Start script run.cold.docker.sh
+    # cron:              
+    # user: "root"     
+    # minute: "5"      
+    # hour: "0"        
+    # job: "/opt/run.cold.docker.sh >> /opt/run.log 2>&1"
+
+- name: Create swap
+  shell: fallocate -l {{ swap_size }} /swapfile
+
+- name: access
+  shell: chmod 600 /swapfile
+
+- name: marking swap
+  shell: mkswap /swapfile 
+
+- name: activation swap
+  shell: swapon /swapfile
+
+- name: show swap
+  shell: swapon --show
+ 
+- name: backup fstab
+  shell: cp /etc/fstab /etc/fstab.bak
+
+- name: fix fstab
+  shell: echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+
+
+#- name: Create 8 Gb swap
+#  command: dd if=/dev/zero of={{ /swapfile }} bs=256M count={{ 32 }}
+ #          creates={{ /swapfile }}
+
+
+#- name: Change swap file permissions
+#  file: path={{ /swapfile }}
+ #         owner=root
+  #        group=root
+   #       mode=0600
+#- name: "Check swap file type"
+
+ #   command: file {{ /swapfile }}
+ #   register: swapfile
+
+#handlers:
+- name: Restart Nginx
+  service:
+    name: nginx
+    state: reloaded
+  
+- name: Restart Nginx
+  service:
+    name: nginx
+    state: restarted
+
+
+
+- meta: flush_handlers
+
+- include_tasks: test.yml
